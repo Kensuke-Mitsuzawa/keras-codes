@@ -187,8 +187,10 @@ class LstmAutoEncoderGenerator1(LstmEncoder):
             ## nan, inifiniteのチェックを実施する ##
             if np.any(np.isnan(pad_seq_word_embedding_matrix)):
                 logger.warning('Skip text-id={} because it has nan value'.format(text_obj.text_id))
+                continue
             if not np.all(np.isfinite(pad_seq_word_embedding_matrix)):
                 logger.warning('Skip text-id={} because it has infinite value'.format(text_obj.text_id))
+                continue
             if self.is_normalize:
                 ## ベクトルの正規化を実施する。サンプルごとに独立に正規化する ##
                 pad_seq_word_embedding_matrix = normalize(X=pad_seq_word_embedding_matrix, axis=1)
@@ -317,7 +319,7 @@ class LstmAutoEncoderGenerator1(LstmEncoder):
         * Note
         - モデルのパラメタは訓練時のパラメタが自動的にセットされる
         """
-        mulan_encoder_obj = MulanLstmEncoderGenerator(word_embedding=word_embedding)
+        mulan_encoder_obj = LstmAutoEncoderGenerator1(word_embedding=word_embedding)
         cls.auto_encoder = mulan_encoder_obj.load_model(path_trained_model)
         input_shape = cls.auto_encoder.input_shape
         mulan_encoder_obj.max_word_length = input_shape[1]
