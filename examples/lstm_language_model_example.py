@@ -66,6 +66,7 @@ except:
 with open(PATH_TRAINING_TEXT, 'r') as f:
     seq_wikipedia_training_text = json.loads(f.read())
 
+
 seq_training_input_text_obj = []
 for i, wikipedia_article_obj in enumerate(seq_wikipedia_training_text):
     seq_training_input_text_obj += preprocess_text(
@@ -85,27 +86,27 @@ for i, wikipedia_article_obj in enumerate(seq_wikipedia_test_text):
         func_get_token=get_token,
         dict_wikipedia_article_obj=wikipedia_article_obj)
 
-'''
+
 ## initialize encoder training-object ##
 language_model_generator = LstmLanguageModelGenerator1(
     word_embedding=embedding_model,
     hidden_unit=200,
     max_word_length=30,
-    epoch=1,
+    epoch=2,
     validation_ratio=0.2)
 ## start training ##
 trained_encoder_obj = language_model_generator.train(seq_input_text_object=seq_training_input_text_obj, is_early_stop=True)
 ## save trained-model ##
 language_model_generator.save_model(filepath=PATH_SAVE_TARINED_MODEL, trained_language_model=trained_encoder_obj)
 del trained_encoder_obj
-del language_model_generator'''
+del language_model_generator
 
-tmp_seq_test_input_text_obj = [
-    seq_test_input_text_obj[0],
-    seq_test_input_text_obj[1],
-    InputTextObject(text_id='2-0', text='あああああああいいいうううえええをおお', seq_token=get_token('あああああああいいいうううえええをおお')),
-    InputTextObject(text_id='3-0', text='東京の言語は岡本太郎のアフリカで、こいつはディズニー', seq_token=get_token('東京の言語は岡本太郎のアフリカで、こいつはディズニー')),
-    InputTextObject(text_id='4-0', text='中国国家統計局は17日、2017年１～３月期の国内総生産（ＧＤＰ）が物価の変動を除いた実質で前年同期比6.9％増えたと発表した。', seq_token=get_token('中国国家統計局は17日、2017年１～３月期の国内総生産（ＧＤＰ）が物価の変動を除いた実質で前年同期比6.9％増えたと発表した。')),
+seq_test_input_text_obj += [
+    InputTextObject(text_id='false-0', text='きょうはおおおおお大きな木の樹が走り出した', seq_token=get_token('きょうはおおおおお大きな木の樹が走り出した')),
+    InputTextObject(text_id='false-1', text='東京の言語は岡本太郎のアフリカで、こいつはディズニー', seq_token=get_token('東京の言語は岡本太郎のアフリカで、こいつはディズニー')),
+    InputTextObject(text_id='false-3', text='当たり前だの缶コーヒーは、なかなかナイスなクールオブジェクト', seq_token=get_token('当たり前だの缶コーヒーは、なかなかナイスなクールオブジェクト')),
+    InputTextObject(text_id='false-4', text='?がありがとう', seq_token=get_token('?がありがとう')),
+    InputTextObject(text_id='false-5', text='わざとほがざいてる', seq_token=get_token('わざとほがざいてる')),
 ]
 
 ## model loading ##
@@ -113,27 +114,11 @@ language_model_generator = LstmLanguageModelGenerator1.init_trained_model(
     word_embedding=embedding_model,
     path_trained_model=PATH_SAVE_TARINED_MODEL)
 ## get language score ##
-language_model_generator.get_language_score(seq_input_text_object=tmp_seq_test_input_text_obj)
+seq_language_score_obj = language_model_generator.get_language_score(seq_input_text_object=seq_test_input_text_obj)
 del language_model_generator
 
+for language_score_obj in seq_language_score_obj:
+    print('*'*30)
+    print(language_score_obj.text_id, language_score_obj.args['text'], language_score_obj.score)
 
-# todo このさきを作り変えること
-'''
-## make text into vector ##
-seq_text_encoded_obj = encoder_generator.encode_text(
-    seq_input_text_object=seq_test_input_text_obj)  # type: List[EncodedVectorObject]
-## Example application: it takes similarity with cosine similarity ##
-from scipy.spatial.distance import cosine
-seed_text_id = 0
-seed_encoded_vector_obj = seq_text_encoded_obj[seed_text_id]
-print('seed-text={}'.format(seed_encoded_vector_obj.args['text']))
-seq_similarity_pair = [
-    (
-        encoded_vector_obj,
-        cosine(seed_encoded_vector_obj.vector, encoded_vector_obj.vector)
-    )
-    for i, encoded_vector_obj in enumerate(seq_text_encoded_obj)
-    if not i == seed_text_id]
-seq_similarity_pair = sorted(seq_similarity_pair, key=lambda simi_tuple:simi_tuple[1])[:10]
-for similarity_tuple_obj in seq_similarity_pair:
-    print("cosine distance={} pair-text={}".format(similarity_tuple_obj[1], similarity_tuple_obj[0].args['text']))'''
+os.remove(PATH_SAVE_TARINED_MODEL)

@@ -47,9 +47,11 @@ class LanguageScoreObject(object):
         self.args = args
 
 
-
 class LstmLanguageModelGenerator1(object):
-    """LSTMを利用したauto encoderを作成する
+    """LSTMを利用した言語モデルを作成する
+
+    * Model
+    - この言語モデルは「入力文の次の単語を予測する」LSTMモデル
     """
     def __init__(self,
                  word_embedding:Union[Word2Vec, KeyedVectors],
@@ -58,8 +60,8 @@ class LstmLanguageModelGenerator1(object):
                  max_word_length:int=15,
                  epoch:int=100,
                  validation_ratio:float=0.2,
-                 activation:str='tanh',
-                 loss_function:str='mse',
+                 activation:str='sigmoid',
+                 loss_function:str='binary_crossentropy',
                  optimizer:str='adam',
                  is_normalize:bool = False):
         """* Parameters
@@ -240,7 +242,8 @@ class LstmLanguageModelGenerator1(object):
             LSTM(units=self.hidden_layer, input_shape=(self.max_word_length, self.dimension_word_embedding),
                  activation=self.activation, return_sequences=True))
         language_model.add(Dropout(0.2))
-        language_model.add(Dense(self.dimension_word_embedding))
+        language_model.add(TimeDistributed(Dense(units=self.dimension_word_embedding), input_shape=(None, 30, 200)))
+        #language_model.add(TimeDistributed(Dense(1), input_shape=(None, 30, 200)))
         language_model.add(Activation('softmax'))
 
         language_model.compile(loss=self.loss_function, optimizer=self.optimizer)
@@ -287,13 +290,16 @@ class LstmLanguageModelGenerator1(object):
     def get_language_score(self,
                            seq_input_text_object:List[InputTextObject],
                            trained_model: Sequential=None,
+                           is_sort:bool=True,
                            **args)->List[LanguageScoreObject]:
         """* What you can do
         - 訓練済みモデルを使って、入力の言語モデルスコアを算出する
+        - 言語モデルスコアとは「損失関数の合計値」
+            - 「訓練済みのモデルで、『入力文の次の単語予測』タスクを解いた時」に、「予測をしくじったスコア」と解釈できる
+            - 予測をしくじることが多ければ、それは入力文がおかしい。という解釈になる。
 
         * Parameters
-        - trained_model: 訓練済みのauto-encoder。与えていない場合は例外発生
-        - encoder_index: auto-encoderモデルのlayer中で、encoderが存在しているlayerインデックス。通常は最初のインデックス
+        - trained_model: 訓練済みの言語モデルLSTMネットワーク。与えていない場合は例外発生
         """
         if not trained_model is None:
             language_model = trained_model
@@ -302,25 +308,19 @@ class LstmLanguageModelGenerator1(object):
                 raise Exception('This generator has not had trained model yet. You first train model or give existing trained model.')
             language_model = self.language_model
 
-        #input_tensor = self.generate_input_tensor_test(seq_input_text_object=seq_input_text_object)
         input_tensor_x, input_tensor_y = self.generate_input_tensor_training(seq_input_text_object=seq_input_text_object)
+        seq_language_score_obj = [None] * len(input_tensor_x)
         for vector_index, vector_x in enumerate(input_tensor_x):
-            loss_score = language_model.evaluate(x=np.array([vector_x]), y=np.array([input_tensor_y[vector_index]]))
-            print(loss_score)
-        #seq_language_score = language_model.predict(x=input_tensor)  # type: np.ndarray
-        #a = language_model.predict_proba(x=input_tensor)
-        #print(a.shape)
+            loss_score = language_model.evaluate(x=np.array([vector_x]), y=np.array([input_tensor_y[vector_index]]), verbose=0)
+            seq_language_score_obj[vector_index] = LanguageScoreObject(
+                text_id=seq_input_text_object[vector_index].text_id,
+                score=loss_score,
+                text=seq_input_text_object[vector_index].text)
+        seq_language_score_obj = [obj for obj in seq_language_score_obj if not obj is None]
+        if is_sort:
+            seq_language_score_obj = list(sorted(seq_language_score_obj, key=lambda obj: obj.score, reverse=True))
 
-
-        seq_sorted_text_obj = list(sorted(seq_input_text_object, key=lambda text_obj: text_obj.text_id))
-        seq_encoded_vector_obj = [None] * len(seq_input_text_object)
-        '''
-        for i, language_score in enumerate(seq_language_score):
-            ## LSTMに於いては、末尾のvectorが「文の情報の圧縮」である ##
-            print(language_score)
-            print(language_score.shape)
-        # todo
-        #return seq_encoded_vector_obj'''
+        return seq_language_score_obj
 
     def load_model(self, path_trained_model, **args)->Sequential:
         """* What you can do
