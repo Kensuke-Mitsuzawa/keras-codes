@@ -1,7 +1,8 @@
 #! -*- coding: utf-8 -*-
 # keras-core
-# class
+# module
 from keras_encoder.lstm_auto_encoder import LstmAutoEncoderGenerator1, InputTextObject, EncodedVectorObject
+from keras_encoder.utils import preprocess_text
 # typing
 from typing import List, Tuple, Any, Dict, Callable
 # japanese tokenizer
@@ -31,28 +32,6 @@ def __func_tokenizer(text:str,
         return tokenizer_obj.tokenize(sentence=text, is_surface=is_surface).convert_list_object()
     else:
         return tokenizer_obj.tokenize(sentence=text, is_surface=is_surface).filter(pos_condition).convert_list_object()
-
-
-def preprocess_text(text_index:int,
-                    func_get_token:Callable[[str],List[str]],
-                    dict_wikipedia_article_obj:Dict[str,str],
-                    sentence_eos:str='。')->List[InputTextObject]:
-    """* What you can do
-    - It cuts text into sentences.
-    - It makes sequence of InputTextObject, which is input object
-    """
-    seq_input_text_obj = []
-    for sentence_index, sentence in enumerate(dict_wikipedia_article_obj['text'].strip().split(sentence_eos)):
-        sentence_text = sentence.strip() + sentence_eos
-
-        seq_input_text_obj.append(
-            InputTextObject(
-                text_id='{}-{}'.format(text_index, sentence_index),
-                text=sentence_text,
-                seq_token=func_get_token(sentence_text)
-            ))
-    return seq_input_text_obj
-
 
 
 PATH_TRAINING_TEXT = './wikipedia_data/wikipedia-full.json'
@@ -111,7 +90,7 @@ encoder_generator = LstmAutoEncoderGenerator1(
     word_embedding=embedding_model,
     hidden_unit=200,
     max_word_length=30,
-    epoch=5,  # todo
+    epoch=5,
     validation_ratio=0.2)
 ## start training ##
 trained_encoder_obj = encoder_generator.train(seq_input_text_object=seq_training_input_text_obj, is_early_stop=True)

@@ -6,6 +6,8 @@ from keras.layers import LSTM, RepeatVector, Input, normalization
 from keras import backend as K  # to avoid error inside keras
 from keras.callbacks import EarlyStopping
 from keras.models import load_model
+# data object
+from keras_encoder.utils import InputTextObject
 # gensim
 try:
     from gensim.models import KeyedVectors, Word2Vec
@@ -18,14 +20,10 @@ import numpy as np
 from typing import List, Dict, Tuple, Any, Union, Callable, TypeVar
 # logger
 from keras_encoder.logger import logger
-# psql
-from psycopg2.extensions import cursor, connection
 # else
 from sklearn.preprocessing import normalize
 import os
 import traceback
-import uuid
-
 
 
 """* Summary
@@ -38,17 +36,6 @@ LSTMを利用した文のencoderを構築するクラス集
     - Training phase: 入力文 -> word embedding -> auto-encoder -> encoder-model
     - Test phase: 入力文 -> word embedding -> encoder-model -> encoded vector
 """
-
-
-class InputTextObject(object):
-    """Training, encodingの両方のステップで利用するオブジェクト
-    1テキストの情報を保持する
-    """
-    def __init__(self, text_id:Union[str,int], text:str, seq_token:List[Union[str,None]], **args):
-        self.text_id = text_id
-        self.text = text
-        self.args = args
-        self.seq_token = seq_token
 
 
 class EncodedVectorObject(object):
@@ -310,60 +297,19 @@ class LstmAutoEncoderGenerator1(LstmEncoder):
         return auto_encoder
 
     @classmethod
-    def init_trained_alddin_encoder(cls,
-                                    word_embedding:Union[Word2Vec, KeyedVectors],
-                                    path_trained_model:str):
+    def init_trained_encoder(cls,
+                             word_embedding:Union[Word2Vec, KeyedVectors],
+                             path_trained_model:str):
         """* What you can do
-        - MulanLstmEncoder自体を生成する
+        - LstmEncoder自体を生成する
 
         * Note
         - モデルのパラメタは訓練時のパラメタが自動的にセットされる
         """
-        mulan_encoder_obj = LstmAutoEncoderGenerator1(word_embedding=word_embedding)
-        cls.auto_encoder = mulan_encoder_obj.load_model(path_trained_model)
+        auto_encoder_obj = LstmAutoEncoderGenerator1(word_embedding=word_embedding)
+        cls.auto_encoder = auto_encoder_obj.load_model(path_trained_model)
         input_shape = cls.auto_encoder.input_shape
-        mulan_encoder_obj.max_word_length = input_shape[1]
-        mulan_encoder_obj.dimension_word_embedding = input_shape[2]
+        auto_encoder_obj.max_word_length = input_shape[1]
+        auto_encoder_obj.dimension_word_embedding = input_shape[2]
 
-        return mulan_encoder_obj
-
-
-BaseEncoder = TypeVar('BaseEncoder', bound=LstmEncoder)
-def train_fuman2vec_encoder(encoder_generator:BaseEncoder,
-                            path_trained_model:str,
-                            psql_post_connection:connection,
-                            func_tokenizer:Callable[[str], List[str]],
-                            where_clause:str)->BaseEncoder:
-    """* What you can do
-    - encoderオブジェクトの訓練を実施する
-    """
-    if not os.path.exists(os.path.dirname(path_trained_model)):
-        raise FileExistsError('No directory at {}'.format(os.path.dirname(path_trained_model)))
-
-    post_cur = psql_post_connection.cursor(name=str(uuid.uuid4()))  # type: cursor
-    post_cur.itersize = 10000
-    sql_base = "SELECT id, text FROM posts " + where_clause
-    seq_text_obj = []
-    logger.info(msg='Now fetching records....')
-    try:
-        post_cur.execute(sql_base)
-    except:
-        logger.error(msg=traceback.format_exc())
-        raise Exception()
-    else:
-        record = post_cur.fetchone()
-        while record:
-            seq_text_obj.append(
-                InputTextObject(text_id=record[0], text=record[1], seq_token=func_tokenizer(record[1])))
-            record = post_cur.fetchone()
-            if record is None:
-                break
-        post_cur.close()
-
-    trained_encoder = encoder_generator.train(
-        seq_input_text_object=seq_text_obj,
-        is_early_stop=True)
-    encoder_generator.save_model(filepath=path_trained_model,
-                                 trained_encoder_model=trained_encoder)
-    psql_post_connection.close()
-    return True
+        return auto_encoder_obj
